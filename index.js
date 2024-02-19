@@ -1,4 +1,7 @@
+import { pubsub } from "./pubsub";
+
 var extensionId = "";
+
 window.addEventListener(
   "message",
   async (event) => {
@@ -10,6 +13,10 @@ window.addEventListener(
     if (event.data.type && event.data.type === "signify-extension") {
       console.log("Content script loaded from polaris-web");
       extensionId = event.data.data.extensionId;
+    }
+
+    if (event.data.type && event.data.type === "signify-signature") {
+      pubsub.publish("signify-signature", event.data.data);
     }
   },
   false
@@ -27,25 +34,31 @@ const requestAidORCred = () => {
   window.postMessage({ type: "select-aid-or-credential" }, "*");
 };
 
-const requestAutoSignin = () => {
-  window.postMessage({ type: "select-auto-signin" }, "*");
-};
-
-const attemptAutoSignin = async () => {
+const requestAutoSignin = async () => {
   const { data, error } = await chrome.runtime.sendMessage(extensionId, {
     type: "fetch-resource",
     subtype: "auto-signin-signature",
   });
   if (error) {
-    requestAutoSignin();
+    window.postMessage({ type: "select-auto-signin" }, "*");
   } else {
-    return { data };
+    pubsub.publish("signify-signature", data);
   }
 };
 
-module.exports = {
+const subscribeToSignature = (func) => {
+  pubsub.subscribe("signify-signature", (_event, data) => func(data));
+};
+
+const unsubscribeFromSignature = () => {
+  pubsub.unsubscribe("signify-signature");
+};
+
+export {
   requestAid,
   requestCredential,
   requestAidORCred,
-  attemptAutoSignin,
+  requestAutoSignin,
+  subscribeToSignature,
+  unsubscribeFromSignature,
 };
